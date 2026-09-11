@@ -4,7 +4,7 @@ function baseUrl() { return window.ETUDIA_API_URL || ''; }
 async function request(path, body) {
   if (!baseUrl()) throw new Error('Cette fonction nécessite la connexion au serveur Étudia. Configure ETUDIA_API_URL sans jamais ajouter de clé IA dans l’application.');
   let response;
-  try { response = await fetch(`${baseUrl()}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Etudia-Key': window.ETUDIA_ACCESS_KEY || '' }, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) }); }
+  try { response = await fetch(`${baseUrl()}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Etudia-Key': window.ETUDIA_ACCESS_KEY || '' }, body: JSON.stringify(body), signal: AbortSignal.timeout(60000) }); }
   catch { throw new Error('Connexion impossible. Vérifie internet puis réessaie.'); }
   if (response.status === 429) throw new Error('Le quota de génération est atteint. Réessaie plus tard.');
   if (!response.ok) throw new Error('Le serveur n’a pas pu traiter la demande. Réessaie plus tard.');
