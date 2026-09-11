@@ -37,19 +37,27 @@ function readBody(req) {
 
 // --- appel Gemini ---
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function callGemini(parts, { wantJson = false } = {}) {
+  const payload = JSON.stringify({
+    contents: [{ role: 'user', parts }],
+    ...(wantJson ? { generationConfig: { responseMimeType: 'application/json' } } : {}),
+  });
+
   let response;
-  try {
-    response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts }],
-        ...(wantJson ? { generationConfig: { responseMimeType: 'application/json' } } : {}),
-      }),
-    });
-  } catch {
-    throw { status: 502, message: 'Impossible de contacter le service IA. Réessaie plus tard.' };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+      });
+    } catch {
+      throw { status: 502, message: 'Impossible de contacter le service IA. Réessaie plus tard.' };
+    }
+    if (response.status === 503 && attempt < 2) { await sleep(1000 * (attempt + 1)); continue; }
+    break;
   }
   if (response.status === 429) throw { status: 429, message: 'Quota Gemini atteint pour le moment. Réessaie plus tard.' };
   if (!response.ok) {
