@@ -75,16 +75,26 @@ function extractJson(text) {
   try { return JSON.parse(cleaned); } catch { return null; }
 }
 
+function stripMarkdown(text) {
+  return String(text)
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^[-*]\s+/gm, '')
+    .replace(/^\d+\.\s+/gm, '')
+    .trim();
+}
+
 function validateCourseShape(value) {
   if (!value || typeof value !== 'object' || !value.title || !Array.isArray(value.sections)) return null;
   const sections = value.sections
     .filter((s) => s && s.title && s.content)
-    .map((s) => ({ title: String(s.title), content: String(s.content) }));
+    .map((s) => ({ title: stripMarkdown(s.title), content: stripMarkdown(s.content) }));
   if (!sections.length) return null;
   const concepts = Array.isArray(value.concepts)
-    ? value.concepts.filter((c) => typeof c === 'string' && c.trim()).map((c) => c.trim())
+    ? value.concepts.filter((c) => typeof c === 'string' && c.trim()).map((c) => stripMarkdown(c))
     : [];
-  return { title: String(value.title), sections, concepts };
+  return { title: stripMarkdown(value.title), sections, concepts };
 }
 
 function validateQuizShape(value) {
@@ -106,12 +116,17 @@ const routes = {
   '/v1/ai/generate-course': async (body) => {
     const { title, subject, schoolLevel, difficulty, language = 'fr', objective } = body;
     if (!title) throw { status: 400, message: 'title manquant.' };
-    const prompt = `Tu es un professeur qui crée une fiche de cours structurée en ${language}.
+    const prompt = `Tu es un professeur expérimenté qui rédige une fiche de cours claire et complète en ${language}, pour un(e) élève de niveau ${schoolLevel || 'non précisé'}.
 Sujet du cours : "${title}"
 Matière : ${subject || 'non précisée'}
-Niveau scolaire : ${schoolLevel || 'non précisé'}
 Difficulté souhaitée : ${difficulty || 'moyenne'}
 Objectif pédagogique : ${objective || 'Comprendre puis s’entraîner progressivement.'}
+
+Consignes de qualité à respecter strictement :
+- Texte brut uniquement : jamais de markdown (pas d'astérisques, dièses, tirets de liste ni numérotation). Pour énumérer plusieurs éléments, écris une phrase par ligne séparée par un simple retour à la ligne.
+- Chaque section doit contenir une explication claire du principe, au moins un exemple concret (chiffré si le sujet s'y prête), et si pertinent une erreur fréquente à éviter.
+- Développe chaque section sur plusieurs phrases construites, jamais une simple définition en une ligne.
+- Adapte le vocabulaire et la longueur au niveau scolaire indiqué.
 
 Réponds UNIQUEMENT avec un objet JSON de cette forme exacte, sans texte autour, sans balises markdown :
 {"title": "titre du cours", "sections": [{"title": "titre de section", "content": "contenu pédagogique clair et complet de la section"}], "concepts": ["notion clé 1", "notion clé 2"]}
@@ -135,7 +150,12 @@ Voici le texte brut extrait par OCR des notes de l'élève (peut contenir des er
 ${originalContent}
 """
 
-Réorganise ce contenu en une fiche de cours claire, fidèle aux notes originales. Réponds UNIQUEMENT avec un objet JSON de cette forme exacte, sans texte autour, sans balises markdown :
+Réorganise ce contenu en une fiche de cours claire, fidèle aux notes originales, en respectant ces consignes de qualité :
+- Texte brut uniquement : jamais de markdown (pas d'astérisques, dièses, tirets de liste ni numérotation). Pour énumérer plusieurs éléments, écris une phrase par ligne séparée par un simple retour à la ligne.
+- Développe et clarifie les notes si elles sont trop condensées, sans inventer de contenu absent des notes originales.
+- Ajoute un exemple concret pour les notions qui n'en ont pas déjà un dans les notes.
+
+Réponds UNIQUEMENT avec un objet JSON de cette forme exacte, sans texte autour, sans balises markdown :
 {"title": "titre du cours", "sections": [{"title": "titre de section", "content": "contenu pédagogique clair"}], "concepts": ["notion clé 1", "notion clé 2"]}
 Ajoute aussi 3 à 6 notions clés courtes (le champ concepts) que l'élève doit retenir, utiles pour générer plus tard des révisions.`;
     const text = await callGemini([{ text: prompt }], { wantJson: true });
