@@ -1,6 +1,14 @@
 export const Mastery = Object.freeze({ new: 'Découverte', learning: 'En apprentissage', fragile: 'Fragile', mastered: 'Maîtrisée' });
 
-export function createId(prefix = 'item') { return `${prefix}_${crypto.randomUUID()}`; }
+function generateUuid() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+export function createId(prefix = 'item') { return `${prefix}_${generateUuid()}`; }
 export function nowIso() { return new Date().toISOString(); }
 
 export function updateMastery(progress, correct) {
