@@ -81,7 +81,23 @@ function validateCourseShape(value) {
     .filter((s) => s && s.title && s.content)
     .map((s) => ({ title: String(s.title), content: String(s.content) }));
   if (!sections.length) return null;
-  return { title: String(value.title), sections };
+  const concepts = Array.isArray(value.concepts)
+    ? value.concepts.filter((c) => typeof c === 'string' && c.trim()).map((c) => c.trim())
+    : [];
+  return { title: String(value.title), sections, concepts };
+}
+
+function validateQuizShape(value) {
+  if (!value || !Array.isArray(value.items)) return null;
+  const items = value.items.filter((it) => {
+    if (!it || !it.type || !it.concept) return false;
+    if (it.type === 'flashcard') return !!it.front && !!it.back;
+    if (it.type === 'question') return !!it.prompt && Array.isArray(it.options) && it.options.length >= 2 && Number.isInteger(it.correctIndex) && it.correctIndex >= 0 && it.correctIndex < it.options.length;
+    if (it.type === 'exercise') return !!it.prompt;
+    return false;
+  });
+  if (!items.length) return null;
+  return { items };
 }
 
 // --- routes, une par endpoint attendu par src/services.js ---
@@ -98,8 +114,8 @@ Difficulté souhaitée : ${difficulty || 'moyenne'}
 Objectif pédagogique : ${objective || 'Comprendre puis s’entraîner progressivement.'}
 
 Réponds UNIQUEMENT avec un objet JSON de cette forme exacte, sans texte autour, sans balises markdown :
-{"title": "titre du cours", "sections": [{"title": "titre de section", "content": "contenu pédagogique clair et complet de la section"}]}
-Crée entre 3 et 6 sections qui couvrent le sujet de façon progressive (définitions, explications, exemples, points de vigilance).`;
+{"title": "titre du cours", "sections": [{"title": "titre de section", "content": "contenu pédagogique clair et complet de la section"}], "concepts": ["notion clé 1", "notion clé 2"]}
+Crée entre 3 et 6 sections qui couvrent le sujet de façon progressive (définitions, explications, exemples, points de vigilance). Ajoute aussi 3 à 6 notions clés courtes (le champ concepts) que l'élève doit retenir, utiles pour générer plus tard des révisions.`;
     const text = await callGemini([{ text: prompt }], { wantJson: true });
     const course = validateCourseShape(extractJson(text));
     if (!course) throw { status: 502, message: 'Réponse IA invalide, réessaie.' };
@@ -120,11 +136,40 @@ ${originalContent}
 """
 
 Réorganise ce contenu en une fiche de cours claire, fidèle aux notes originales. Réponds UNIQUEMENT avec un objet JSON de cette forme exacte, sans texte autour, sans balises markdown :
-{"title": "titre du cours", "sections": [{"title": "titre de section", "content": "contenu pédagogique clair"}]}`;
+{"title": "titre du cours", "sections": [{"title": "titre de section", "content": "contenu pédagogique clair"}], "concepts": ["notion clé 1", "notion clé 2"]}
+Ajoute aussi 3 à 6 notions clés courtes (le champ concepts) que l'élève doit retenir, utiles pour générer plus tard des révisions.`;
     const text = await callGemini([{ text: prompt }], { wantJson: true });
     const course = validateCourseShape(extractJson(text));
     if (!course) throw { status: 502, message: 'Réponse IA invalide, réessaie.' };
     return course;
+  },
+
+  '/v1/ai/generate-quiz': async (body) => {
+    const { courseTitle, courseContent, concepts } = body;
+    if (!Array.isArray(concepts) || !concepts.length) throw { status: 400, message: 'concepts manquants.' };
+    const sectionsText = Array.isArray(courseContent?.sections)
+      ? courseContent.sections.map((s) => `${s.title} : ${s.content}`).join('\n')
+      : JSON.stringify(courseContent || '').slice(0, 4000);
+    const prompt = `Tu es un professeur qui crée des activités de révision variées en français, à partir d'un cours déjà rédigé.
+Titre du cours : "${courseTitle || 'Sans titre'}"
+Contenu du cours :
+"""
+${sectionsText.slice(0, 6000)}
+"""
+Notions à travailler en priorité : ${concepts.join(', ')}
+
+Pour chacune de ces notions, crée une flashcard (question courte au recto, réponse au verso) et une question à choix multiple (4 options, une seule correcte, avec une explication de la bonne réponse). Ajoute aussi un seul exercice global qui combine plusieurs de ces notions, avec un indice et une solution modèle rédigée.
+
+Réponds UNIQUEMENT avec un objet JSON de cette forme exacte, sans texte autour, sans balises markdown :
+{"items": [
+  {"type": "flashcard", "concept": "nom de la notion", "front": "question courte", "back": "réponse"},
+  {"type": "question", "concept": "nom de la notion", "prompt": "énoncé", "options": ["option A", "option B", "option C", "option D"], "correctIndex": 0, "explanation": "pourquoi c'est la bonne réponse"},
+  {"type": "exercise", "concept": "nom de la notion", "prompt": "énoncé de l'exercice", "hint": "indice", "solution": "solution rédigée"}
+]}`;
+    const text = await callGemini([{ text: prompt }], { wantJson: true });
+    const quiz = validateQuizShape(extractJson(text));
+    if (!quiz) throw { status: 502, message: 'Réponse de quiz invalide, réessaie.' };
+    return quiz;
   },
 
   '/v1/ai/answer': async (body) => {
