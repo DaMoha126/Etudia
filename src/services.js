@@ -14,6 +14,7 @@ export const aiService = {
   async generateCourse(input) { return validateGeneratedCourse(await request('/v1/ai/generate-course', input)); },
   async answerQuestion(input) { const r = await request('/v1/ai/answer', input); if (!r.answer) throw new Error('Réponse IA invalide.'); return r.answer; },
   async analyzeCourse(input) { return validateGeneratedCourse(await request('/v1/ai/analyze-course', input)); },
+  async generateQuiz(input) { const r = await request('/v1/ai/generate-quiz', input); if (!Array.isArray(r.items) || !r.items.length) throw new Error('Réponse de quiz invalide. Réessaie plus tard.'); return r.items; },
 };
 export const ocrService = {
   async extract(pages) { const r = await request('/v1/ocr/extract', { pages }); if (!r.text?.trim()) throw new Error('Impossible de lire cette photo. Essaie avec une photo plus nette et mieux éclairée.'); return r.text; },
