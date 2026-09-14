@@ -97,6 +97,24 @@ function validateCourseShape(value) {
   return { title: stripMarkdown(value.title), sections, concepts };
 }
 
+function validatePlanShape(value) {
+  if (!value || !Array.isArray(value.days)) return null;
+  const days = value.days
+    .filter((d) => d && d.day && Array.isArray(d.blocks))
+    .map((d) => ({
+      day: stripMarkdown(d.day),
+      blocks: d.blocks
+        .filter((b) => b && b.activity)
+        .map((b) => ({
+          time: b.time ? stripMarkdown(String(b.time)) : '',
+          activity: stripMarkdown(b.activity),
+          durationMinutes: Number.isFinite(b.durationMinutes) ? b.durationMinutes : null,
+        })),
+    }));
+  if (!days.length) return null;
+  return days;
+}
+
 function validateQuizShape(value) {
   if (!value || !Array.isArray(value.items)) return null;
   const items = value.items.filter((it) => {
@@ -201,6 +219,33 @@ Réponds UNIQUEMENT avec un objet JSON de cette forme exacte, sans texte autour,
     const quiz = validateQuizShape(extractJson(text));
     if (!quiz) throw { status: 502, message: 'Réponse de quiz invalide, réessaie.' };
     return quiz;
+  },
+
+  '/v1/ai/revision-plan': async (body) => {
+    const { schoolSchedule, courses } = body;
+    if (!schoolSchedule || !Array.isArray(courses) || !courses.length) throw { status: 400, message: 'emploi du temps ou cours manquants.' };
+    const coursesText = courses.map((c) => `- ${c.title}${c.subject ? ` (${c.subject})` : ''} : notions clés — ${(c.concepts || []).join(', ') || 'aucune notion enregistrée'}`).join('\n');
+    const todayLabel = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+    const prompt = `Tu es un conseiller pédagogique qui aide un élève à organiser ses révisions sur une semaine, en tenant compte de son emploi du temps scolaire.
+Nous sommes aujourd'hui : ${todayLabel}.
+
+Emploi du temps scolaire de l'élève (jours et horaires de cours) :
+"""
+${schoolSchedule.slice(0, 2000)}
+"""
+
+Cours que l'élève doit réviser, avec leurs notions clés :
+${coursesText.slice(0, 3000)}
+
+Propose un planning de révision pour les 7 prochains jours à partir d'aujourd'hui. Répartis les cours à réviser en dehors des heures de classe indiquées, avec des séances courtes (15 à 30 minutes). Ne mets jamais la même matière deux jours d'affilée : privilégie l'espacement et la variété entre les matières. Chaque jour peut avoir 0 à 2 séances (0 si l'élève semble déjà chargé ce jour-là).
+
+Réponds UNIQUEMENT avec un objet JSON de cette forme exacte, sans texte autour, sans balises markdown :
+{"days": [{"day": "Lundi 12 janvier", "blocks": [{"time": "18h30", "activity": "Réviser les fonctions affines (Maths)", "durationMinutes": 20}]}]}
+Les 7 jours doivent apparaître dans l'ordre à partir d'aujourd'hui, avec leur vrai nom de jour et leur date.`;
+    const text = await callGemini([{ text: prompt }], { wantJson: true });
+    const days = validatePlanShape(extractJson(text));
+    if (!days) throw { status: 502, message: 'Réponse de planning invalide, réessaie.' };
+    return { days };
   },
 
   '/v1/ai/answer': async (body) => {
