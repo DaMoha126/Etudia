@@ -1,0 +1,36 @@
+export const Mastery = Object.freeze({ new: 'Découverte', learning: 'En apprentissage', fragile: 'Fragile', mastered: 'Maîtrisée' });
+
+function generateUuid() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+export function createId(prefix = 'item') { return `${prefix}_${generateUuid()}`; }
+export function nowIso() { return new Date().toISOString(); }
+
+export function updateMastery(progress, correct) {
+  const next = { ...progress, correctAnswers: progress.correctAnswers || 0, incorrectAnswers: progress.incorrectAnswers || 0, streak: progress.streak || 0 };
+  if (correct) { next.correctAnswers++; next.streak++; } else { next.incorrectAnswers++; next.streak = 0; }
+  const total = next.correctAnswers + next.incorrectAnswers;
+  const rate = next.correctAnswers / total;
+  next.masteryLevel = !correct ? Mastery.fragile : next.streak >= 4 ? Mastery.mastered : total < 2 ? Mastery.learning : rate < .55 ? Mastery.fragile : Mastery.learning;
+  const intervalDays = !correct ? 1 : next.streak === 1 ? 1 : next.streak === 2 ? 3 : next.streak === 3 ? 7 : 14;
+  next.lastReviewedAt = nowIso();
+  next.nextReviewAt = new Date(Date.now() + intervalDays * 864e5).toISOString();
+  return next;
+}
+
+export function recommendedConcepts(progresses, limit = 4) {
+  return [...progresses].sort((a, b) => {
+    const rank = (p) => p.masteryLevel === Mastery.fragile ? 0 : p.nextReviewAt && new Date(p.nextReviewAt) <= new Date() ? 1 : 2;
+    return rank(a) - rank(b) || new Date(a.nextReviewAt || 0) - new Date(b.nextReviewAt || 0);
+  }).slice(0, limit);
+}
+
+export function validateGeneratedCourse(value) {
+  if (!value || typeof value !== 'object' || !value.title || !Array.isArray(value.sections)) throw new Error('Réponse de génération invalide. Réessaie plus tard.');
+  return { ...value, sections: value.sections.filter(s => s && s.title && s.content) };
+}
