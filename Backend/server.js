@@ -112,25 +112,34 @@ function validateQuizShape(value) {
 
 // --- routes, une par endpoint attendu par src/services.js ---
 
+const DIFFICULTY_GUIDANCE = {
+  'Très simple': 'Utilise un vocabulaire simple et des phrases courtes, comme pour quelqu’un qui découvre le sujet pour la première fois. Explique chaque terme technique dès qu’il apparaît, avec des mots courants. Base-toi sur des exemples très concrets tirés de la vie quotidienne. Reste sur les bases essentielles, sans entrer dans les cas particuliers ou les exceptions.',
+  Normal: 'Adopte le niveau attendu pour la classe indiquée : ni simplifié à l’excès, ni trop poussé. Utilise le vocabulaire habituel du programme scolaire de ce niveau, avec des exemples typiques de ce qu’on y rencontre.',
+  Approfondissement: 'Va nettement au-delà du programme standard : mentionne les nuances, exceptions, cas particuliers, et fais des liens explicites avec d’autres notions du programme. Utilise un vocabulaire précis et rigoureux. Donne plusieurs exemples variés, y compris des cas plus complexes, et signale explicitement les pièges ou erreurs fréquentes des élèves à ce niveau.',
+};
+
 const routes = {
   '/v1/ai/generate-course': async (body) => {
     const { title, subject, schoolLevel, difficulty, language = 'fr', objective } = body;
     if (!title) throw { status: 400, message: 'title manquant.' };
+    const depthGuidance = DIFFICULTY_GUIDANCE[difficulty] || DIFFICULTY_GUIDANCE.Normal;
     const prompt = `Tu es un professeur expérimenté qui rédige une fiche de cours claire et complète en ${language}, pour un(e) élève de niveau ${schoolLevel || 'non précisé'}.
 Sujet du cours : "${title}"
 Matière : ${subject || 'non précisée'}
-Difficulté souhaitée : ${difficulty || 'moyenne'}
 Objectif pédagogique : ${objective || 'Comprendre puis s’entraîner progressivement.'}
+
+Niveau de profondeur demandé : ${difficulty || 'Normal'}
+${depthGuidance}
 
 Consignes de qualité à respecter strictement :
 - Texte brut uniquement : jamais de markdown (pas d'astérisques, dièses, tirets de liste ni numérotation). Pour énumérer plusieurs éléments, écris une phrase par ligne séparée par un simple retour à la ligne.
-- Chaque section doit contenir une explication claire du principe, au moins un exemple concret (chiffré si le sujet s'y prête), et si pertinent une erreur fréquente à éviter.
-- Développe chaque section sur plusieurs phrases construites, jamais une simple définition en une ligne.
-- Adapte le vocabulaire et la longueur au niveau scolaire indiqué.
+- Chaque section doit être développée sur un vrai paragraphe (au moins 5 à 8 phrases construites) : une explication claire du principe, au moins deux exemples concrets distincts (chiffrés si le sujet s'y prête), et une erreur fréquente à éviter si pertinent.
+- Ne te contente jamais d'une définition courte : creuse le pourquoi, le comment, et fais des liens avec ce que l'élève sait déjà.
+- Adapte le vocabulaire au niveau scolaire indiqué, mais pas la longueur : chaque section doit rester substantielle quel que soit le niveau.
 
 Réponds UNIQUEMENT avec un objet JSON de cette forme exacte, sans texte autour, sans balises markdown :
 {"title": "titre du cours", "sections": [{"title": "titre de section", "content": "contenu pédagogique clair et complet de la section"}], "concepts": ["notion clé 1", "notion clé 2"]}
-Crée entre 3 et 6 sections qui couvrent le sujet de façon progressive (définitions, explications, exemples, points de vigilance). Ajoute aussi 3 à 6 notions clés courtes (le champ concepts) que l'élève doit retenir, utiles pour générer plus tard des révisions.`;
+Crée entre 4 et 7 sections qui couvrent le sujet de façon progressive (définitions, explications, exemples, points de vigilance, synthèse). Ajoute aussi 3 à 6 notions clés courtes (le champ concepts) que l'élève doit retenir, utiles pour générer plus tard des révisions.`;
     const text = await callGemini([{ text: prompt }], { wantJson: true });
     const course = validateCourseShape(extractJson(text));
     if (!course) throw { status: 502, message: 'Réponse IA invalide, réessaie.' };
