@@ -113,8 +113,10 @@ function validateQuizShape(value) {
 // --- routes, une par endpoint attendu par src/services.js ---
 
 const DIFFICULTY_GUIDANCE = {
-  'Très simple': 'Utilise un vocabulaire simple et des phrases courtes, comme pour quelqu’un qui découvre le sujet pour la première fois. Explique chaque terme technique dès qu’il apparaît, avec des mots courants. Base-toi sur des exemples très concrets tirés de la vie quotidienne. Reste sur les bases essentielles, sans entrer dans les cas particuliers ou les exceptions.',
+  Découverte: 'Suppose que l’élève n’a absolument aucune connaissance préalable du sujet. Utilise des mots très simples et des phrases courtes, avec beaucoup d’analogies tirées de la vie quotidienne. N’utilise jamais un terme technique sans l’expliquer immédiatement avec un exemple simple. Ne couvre que l’essentiel absolu, sans aucun cas particulier.',
+  'Très simple': 'Utilise un vocabulaire simple et accessible, des phrases courtes à moyennes. Explique chaque terme technique dès qu’il apparaît, avec des mots courants. Base-toi sur des exemples concrets et familiers. Reste sur les bases essentielles, sans entrer dans les cas particuliers ou les exceptions.',
   Normal: 'Adopte le niveau attendu pour la classe indiquée : ni simplifié à l’excès, ni trop poussé. Utilise le vocabulaire habituel du programme scolaire de ce niveau, avec des exemples typiques de ce qu’on y rencontre.',
+  Avancé: 'Va au-delà des bases attendues pour la classe indiquée : ajoute des nuances et quelques cas particuliers, des exemples plus variés ou un peu plus complexes que la moyenne, et fais des liens avec d’autres notions proches du programme.',
   Approfondissement: 'Va nettement au-delà du programme standard : mentionne les nuances, exceptions, cas particuliers, et fais des liens explicites avec d’autres notions du programme. Utilise un vocabulaire précis et rigoureux. Donne plusieurs exemples variés, y compris des cas plus complexes, et signale explicitement les pièges ou erreurs fréquentes des élèves à ce niveau.',
 };
 
