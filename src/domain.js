@@ -12,13 +12,14 @@ export function createId(prefix = 'item') { return `${prefix}_${generateUuid()}`
 export function nowIso() { return new Date().toISOString(); }
 
 export function updateMastery(progress, correct) {
-  const next = { ...progress, correctAnswers: progress.correctAnswers || 0, incorrectAnswers: progress.incorrectAnswers || 0 };
-  correct ? next.correctAnswers++ : next.incorrectAnswers++;
+  const next = { ...progress, correctAnswers: progress.correctAnswers || 0, incorrectAnswers: progress.incorrectAnswers || 0, streak: progress.streak || 0 };
+  if (correct) { next.correctAnswers++; next.streak++; } else { next.incorrectAnswers++; next.streak = 0; }
   const total = next.correctAnswers + next.incorrectAnswers;
   const rate = next.correctAnswers / total;
-  next.masteryLevel = total < 2 ? Mastery.learning : rate < .55 ? Mastery.fragile : rate >= .8 && total >= 4 ? Mastery.mastered : Mastery.learning;
+  next.masteryLevel = !correct ? Mastery.fragile : next.streak >= 4 ? Mastery.mastered : total < 2 ? Mastery.learning : rate < .55 ? Mastery.fragile : Mastery.learning;
+  const intervalDays = !correct ? 1 : next.streak === 1 ? 1 : next.streak === 2 ? 3 : next.streak === 3 ? 7 : 14;
   next.lastReviewedAt = nowIso();
-  next.nextReviewAt = new Date(Date.now() + (next.masteryLevel === Mastery.fragile ? 864e5 : 3 * 864e5)).toISOString();
+  next.nextReviewAt = new Date(Date.now() + intervalDays * 864e5).toISOString();
   return next;
 }
 
